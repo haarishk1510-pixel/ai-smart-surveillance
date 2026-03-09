@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AI Surveillance Dashboard</title>
+</head>
+<body>
+    <h1>AI Surveillance Logs</h1>
+    <table border="1">
+        <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Status</th>
+            <th>Distance</th>
+            <th>Image Path</th>
+            <th>Timestamp</th>
+        </tr>
+        {% for log in logs %}
+        <tr>
+            <td>{{ log.id }}</td>
+            <td>{{ log.name }}</td>
+            <td>{{ log.status }}</td>
+            <td>{{ log.distance }}</td>
+            <td>{{ log.image_path }}</td>
+            <td>{{ log.timestamp }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>
