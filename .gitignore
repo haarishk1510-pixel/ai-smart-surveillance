@@ -1,3 +1,28 @@
+# Python and environments
 venv/
+surveillance_env/
 __pycache__/
+*.pyc
+
+# Secrets
 .env
+
+# Private images: faces and camera captures must never be committed
+known_faces/*
+!known_faces/.gitkeep
+evidence/*
+!evidence/.gitkeep
+backup/
+static/evidence/
+static/authorized/
+static/temp_frame.jpg
+.private_backup/
+
+# Local clutter
+.DS_Store
+logs/
+.vercel/
+nano find_cam.py
+nano test_cam.py
+.claude/
+resume_output/

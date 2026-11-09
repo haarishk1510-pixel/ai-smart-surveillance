@@ -1,215 +1,183 @@
 import os
 import cv2
-import boto3
 import time
-import numpy as np
+import threading
 import mysql.connector
+import serial
+import boto3
 from datetime import datetime
-from dotenv import load_dotenv
 from deepface import DeepFace
+from dotenv import load_dotenv
 
-# ================= LOAD ENV =================
-load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
 
-AWS_REGION = os.getenv("AWS_REGION")
-S3_BUCKET = os.getenv("S3_BUCKET")
-SNS_TOPIC_ARN = os.getenv("SNS_TOPIC_ARN")
+# ================= AWS =================
+S3_BUCKET = os.environ["S3_BUCKET"]
+SNS_TOPIC_ARN = os.environ["SNS_TOPIC_ARN"]
 
-print("REGION:", AWS_REGION)
-print("BUCKET:", S3_BUCKET)
+s3 = boto3.client("s3")
+sns = boto3.client("sns")
 
-# ================= SETTINGS =================
-KNOWN_FACES_DIR = "known_faces"
-SAVE_COOLDOWN = 5
-STABLE_FRAME_REQUIRED = 1
-
-last_severity = None
-stable_count = 0
-last_saved_time = 0
-
-# ================= AWS CLIENTS =================
-s3 = boto3.client("s3", region_name=AWS_REGION)
-sns = boto3.client("sns", region_name=AWS_REGION)
+# ================= SERIAL =================
+ser = None
+try:
+    ser = serial.Serial(os.environ.get("SERIAL_PORT", "/dev/cu.usbmodem114401"), 9600, timeout=1)
+    time.sleep(2)
+    print("✅ Arduino connected")
+except:
+    print("⚠️ Arduino not connected")
 
 # ================= DATABASE =================
 db = mysql.connector.connect(
-    host="localhost",
-    user="root",
-    password="Amuthas@1",
-    database="surveillance_db"
+    host=os.environ.get("DB_HOST", "localhost"),
+    user=os.environ.get("EDGE_DB_USER", "root"),
+    password=os.environ["EDGE_DB_PASSWORD"],
+    database=os.environ.get("DB_NAME", "surveillance_db")
 )
 cursor = db.cursor()
-print("Database Connected")
 
-# ================= COSINE DISTANCE =================
-def cosine_distance(a, b):
-    a = a / np.linalg.norm(a)
-    b = b / np.linalg.norm(b)
-    return 1 - np.dot(a, b)
+# ================= CONFIG =================
+KNOWN_DIR = "known_faces"
+SAVE_COOLDOWN = 5
 
-# ================= LOAD KNOWN FACES =================
-def load_known_faces():
-    embeddings = {}
-    print("Loading authorized users...")
+last_saved_time = 0
+last_status = None
 
-    for file in os.listdir(KNOWN_FACES_DIR):
-        if file.lower().endswith((".jpg", ".jpeg", ".png")):
-            name = os.path.splitext(file)[0].split("_")[0]
-            path = os.path.join(KNOWN_FACES_DIR, file)
 
-            try:
-                rep = DeepFace.represent(
-                    img_path=path,
-                    model_name="ArcFace",
-                    enforce_detection=False
-                )
-                embeddings[name] = np.array(rep[0]["embedding"])
-                print("Loaded:", name)
-            except:
-                print("Failed:", file)
+# stability counters
+auth_count = 0
+unauth_count = 0
 
-    print("Total users:", len(embeddings))
-    return embeddings
+known_images = [
+    os.path.join(KNOWN_DIR, f)
+    for f in os.listdir(KNOWN_DIR)
+    if f.endswith((".jpg", ".png", ".jpeg"))
+]
 
-known_embeddings = load_known_faces()
+# ================= CAMERA =================
+cap = cv2.VideoCapture(0)
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 960)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 540)
 
-# ================= FACE DETECTOR =================
-face_cascade = cv2.CascadeClassifier(
-    cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-)
+# ================= BACKGROUND FUNCTION =================
+def handle_event(frame, status, distance):
+    try:
+        filename = f"evidence_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+        os.makedirs("evidence", exist_ok=True)
+        path = os.path.join("evidence", filename)
 
-cap = cv2.VideoCapture(0, cv2.CAP_AVFOUNDATION)
-cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        cv2.imwrite(path, frame)
+        print("📸 Saved")
 
-print("🚀 AI Smart Surveillance - Final Stable Version")
+        s3.upload_file(path, S3_BUCKET, filename)
+        print("☁️ S3 uploaded")
 
-# ================= MAIN LOOP =================
+        sns.publish(
+            TopicArn=SNS_TOPIC_ARN,
+            Subject="Unauthorized Alert",
+            Message=f"Detected at {datetime.now()}"
+        )
+        print("📩 Alert sent")
+
+        cursor.execute("""
+            INSERT INTO events (name, status, distance, image_path, timestamp)
+            VALUES (%s, %s, %s, %s, %s)
+        """, ("Unknown", status, float(distance), path, datetime.now()))
+        db.commit()
+        print("🗄 DB saved")
+
+    except Exception as e:
+        print("⚠️ Background error:", e)
+
+# ================= LOOP =================
+frame_count = 0
+status = "UNAUTHORIZED"
+best_distance = 1.0
+
 while True:
     ret, frame = cap.read()
     if not ret:
-        break
-    frame = cv2.resize(frame, (640, 480))
+        continue
 
-    display_frame = frame.copy()
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    faces = face_cascade.detectMultiScale(gray, 1.2, 6)
+    frame_count += 1
+    display = frame.copy()
 
-    for (x, y, w, h) in faces:
-        face_img = frame[y:y+h, x:x+w]
+    # 🔥 AI every 10 frames (faster + stable)
+    if frame_count % 10 == 0:
 
-        try:
-            rep = DeepFace.represent(
-                img_path=face_img,
-                model_name="ArcFace",
-                enforce_detection=False
-            )
+        small = cv2.resize(frame, (320, 240))
 
-            live_embedding = np.array(rep[0]["embedding"])
+        match_count = 0
+        best_distance = 1.0
 
-            min_distance = float("inf")
-            matched_name = "Unknown"
+        for img in known_images[:3]:
+            try:
+                result = DeepFace.verify(
+                    small,
+                    img,
+                    model_name="Facenet",
+                    enforce_detection=False
+                )
 
-            for name, known_embedding in known_embeddings.items():
-                dist = cosine_distance(live_embedding, known_embedding)
-                if dist < min_distance:
-                    min_distance = dist
-                    matched_name = name
+                dist = result["distance"]
 
-            print("Distance:", round(min_distance, 3))
+                if dist < best_distance:
+                    best_distance = dist
 
-            # ================= SEVERITY LOGIC =================
-            if min_distance < 0.60:
-                severity = "AUTHORIZED"
-                color = (0, 255, 0)
+                if dist < 0.55:
+                    match_count += 1
 
-            elif min_distance < 0.75:
-                severity = "SUSPICIOUS"
-                color = (0, 255, 255)
+            except:
+                pass
 
-            else:
-                severity = "UNAUTHORIZED"
-                color = (0, 0, 255)
+        # ===== STABILITY LOGIC =====
+        if match_count >= 1:
+            auth_count += 1
+            unauth_count = 0
+        else:
+            unauth_count += 1
+            auth_count = 0
 
-            # Draw box
-            cv2.rectangle(display_frame, (x, y), (x+w, y+h), color, 2)
-            cv2.putText(
-                display_frame,
-                f"{severity} ({min_distance:.2f})",
-                (x, y-10),
+        if auth_count >= 2:
+            status = "AUTHORIZED"
+        elif unauth_count >= 3:
+            status = "UNAUTHORIZED"
+        # else → keep previous status
+
+    # ================= DISPLAY =================
+    color = (0, 255, 0) if status == "AUTHORIZED" else (0, 0, 255)
+
+    cv2.putText(display,
+                f"{status} ({best_distance:.2f})",
+                (30, 50),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                0.7,
+                1,
                 color,
-                2
-            )
+                2)
 
-            # ================= STABILITY CONTROL =================
-            if severity == last_severity:
-                stable_count += 1
-            else:
-                stable_count = 0
+    cv2.imshow("AI Surveillance", display)
 
-            last_severity = severity
-            current_time = time.time()
+    # ================= SERIAL =================
+    if status != last_status:
+        if ser:
+            ser.write(b'A' if status == "AUTHORIZED" else b'U')
+        print("Sending:", status)
+        last_status = status
 
-            # ================= UNAUTHORIZED TRIGGER =================
-            if (
-                severity == "UNAUTHORIZED"
-                and stable_count >= STABLE_FRAME_REQUIRED
-                and current_time - last_saved_time > SAVE_COOLDOWN
-            ):
+    # ================= EVENT =================
+    current_time = time.time()
 
-                print("🚨 UNAUTHORIZED PERSON DETECTED")
+    if status == "UNAUTHORIZED" and current_time - last_saved_time > SAVE_COOLDOWN:
+        threading.Thread(
+            target=handle_event,
+            args=(frame.copy(), status, best_distance),
+            daemon=True
+        ).start()
 
-                filename = f"evidence_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
-                os.makedirs("evidence", exist_ok=True)
-                local_path = os.path.join("evidence", filename)
+        last_saved_time = current_time
 
-                cv2.imwrite(local_path, frame)
-                print("📸 Saved Locally:", local_path)
-
-                try:
-                    s3.upload_file(local_path, S3_BUCKET, filename)
-                    print("☁ Uploaded to S3")
-                except Exception as e:
-                    print("S3 Error:", e)
-
-                try:
-                    sql = """
-                    INSERT INTO events (name, status, distance, image_path, timestamp)
-                    VALUES (%s, %s, %s, %s, %s)
-                    """
-                    values = (
-                        matched_name,
-                        severity,
-                        float(min_distance),
-                        local_path,
-                        datetime.now()
-                    )
-                    cursor.execute(sql, values)
-                    db.commit()
-                    print("🗄 Logged in Database")
-                except Exception as e:
-                    print("DB Error:", e)
-
-                try:
-                    sns.publish(
-                        TopicArn=SNS_TOPIC_ARN,
-                        Subject="🚨 Unauthorized Alert",
-                        Message=f"Unauthorized person detected at {datetime.now()}"
-                    )
-                    print("📩 SNS Sent")
-                except Exception as e:
-                    print("SNS Error:", e)
-
-                last_saved_time = current_time
-
-        except Exception as e:
-            print("Face Processing Error:", e)
-            continue
-
-    cv2.imshow("AI Smart Surveillance", display_frame)
-
-    if cv2.waitKey(1) & 0xFF == ord("q"):
+    # ================= EXIT =================
+    if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
 cap.release()
