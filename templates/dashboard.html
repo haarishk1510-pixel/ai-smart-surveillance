@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+{% if not demo %}<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>{% endif %}
 
 <style>
 
@@ -127,7 +127,11 @@ border-radius:10px;
 <h1>AI Smart Surveillance Dashboard</h1>
 
 <div style="text-align:center;margin-top:10px;font-size:18px;">
+{% if demo %}
+🟡 <b>Demo mode:</b> sample events only. No camera, real people or real alerts are connected.
+{% else %}
 🟢 System Status: <b>Active Monitoring</b>
+{% endif %}
 </div>
 
 {% if logs %}
@@ -252,6 +256,7 @@ tr[i].style.display=text.includes(filter)?"":"none";
 }
 }
 
+{% if not demo %}
 const socket=io();
 
 socket.on("new_event",function(data){
@@ -276,6 +281,7 @@ Notification.requestPermission();
 setInterval(function(){
 location.reload();
 },10000);
+{% endif %}
 
 </script>
 

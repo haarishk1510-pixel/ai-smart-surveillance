@@ -1,386 +1,136 @@
-# Intelligent Surveillance System with AI, Face Recognition, Cloud Backup and IoT Alerting
+# AI Smart Surveillance System
 
-![Python](https://img.shields.io/badge/Python-3.11-blue)
+Real-time face authentication with automatic evidence capture, cloud alerts and a hardware alarm.
+
+![Python](https://img.shields.io/badge/Python-3.13-blue)
 ![OpenCV](https://img.shields.io/badge/OpenCV-Computer%20Vision-green)
-![YOLOv8](https://img.shields.io/badge/YOLOv8-Object%20Detection-red)
-![Face Recognition](https://img.shields.io/badge/Face%20Recognition-AI-orange)
-![Flask](https://img.shields.io/badge/Flask-Web%20Dashboard-black)
-![SQLite](https://img.shields.io/badge/SQLite-Database-blue)
-![AWS S3](https://img.shields.io/badge/AWS-S3-orange)
-![Arduino Nano](https://img.shields.io/badge/Arduino-Nano-cyan)
-![IoT](https://img.shields.io/badge/IoT-Smart%20Surveillance-green)
+![DeepFace](https://img.shields.io/badge/DeepFace-FaceNet-orange)
+![Flask](https://img.shields.io/badge/Flask-Dashboard-black)
+![MySQL](https://img.shields.io/badge/MySQL-Event%20Log-blue)
+![AWS](https://img.shields.io/badge/AWS-S3%20%2B%20SNS-orange)
+![Arduino](https://img.shields.io/badge/Arduino-Nano-teal)
 
----
+**Live demo:** <https://ai-smart-surveillance.vercel.app> (sign in with `admin` / `admin`)
 
-## Project Overview
+> The live demo runs only the admin dashboard, on sample data. The detection pipeline needs a webcam, an Arduino and a local database, so it runs on an edge device rather than in the cloud. No real people or camera images are in the demo or in this repository.
 
-The Intelligent Surveillance System is an AI-powered security monitoring platform that combines Computer Vision, Face Recognition, Cloud Computing, and IoT technologies to provide real-time surveillance, automated threat detection, evidence management, and instant alert generation.
+## What it does
 
-The system continuously monitors live video streams using a camera, detects objects using YOLOv8, authenticates authorized individuals through facial recognition, captures evidence automatically, stores incidents locally, uploads evidence to AWS S3 cloud storage, and triggers hardware alerts through an Arduino Nano-based alert mechanism.
+Traditional CCTV records footage for someone to review later. This system watches a camera feed, decides whether the person in view is authorized, and reacts on its own:
 
-This project aims to reduce manual surveillance efforts while improving security response times and ensuring reliable evidence preservation.
+- Verifies faces from a live camera against enrolled images using DeepFace (FaceNet).
+- Requires consistent results across checks before changing state, which reduces false alarms from a single bad frame.
+- Saves a timestamped evidence image for each unauthorized detection.
+- Uploads evidence to AWS S3 and sends an email alert through AWS SNS.
+- Logs each event to MySQL.
+- Signals an Arduino Nano over serial to drive an LED and buzzer.
+- Provides a Flask admin dashboard with login, statistics, a searchable event log, evidence previews and CSV export.
 
----
-
-# Features
-
-### Real-Time Surveillance
-
-- Live camera monitoring
-- Continuous frame processing
-- Automated incident detection
-- Real-time threat identification
-
-### AI Object Detection
-
-- YOLOv8 object detection
-- Person detection
-- Confidence-based predictions
-- Real-time inference
-
-### Face Authentication
-
-- Authorized user recognition
-- Unknown person detection
-- Face registration module
-- Face encoding and matching
-
-### Evidence Management
-
-- Automatic image capture
-- Timestamped evidence storage
-- Incident archiving
-- Historical evidence tracking
-
-### Cloud Integration
-
-- AWS S3 evidence upload
-- Secure cloud backup
-- Remote evidence accessibility
-- Cloud synchronization
-
-### IoT Alert System
-
-- Arduino Nano integration
-- LED alert notification
-- Buzzer alarm system
-- Serial communication
-
-### Monitoring Dashboard
-
-- Incident monitoring
-- Event visualization
-- Evidence review
-- Alert tracking
-
-### Logging and Database
-
-- Event logging
-- Incident history
-- SQLite database storage
-- Audit records
-
----
-
-# System Architecture
+## Architecture
 
 ```text
-                    ┌─────────────────────┐
-                    │      USB Camera     │
-                    └──────────┬──────────┘
-                               │
-                               ▼
-
-                    ┌─────────────────────┐
-                    │ OpenCV Video Stream │
-                    └──────────┬──────────┘
-                               │
-                               ▼
-
-                    ┌─────────────────────┐
-                    │ YOLOv8 Detection    │
-                    └──────────┬──────────┘
-                               │
-
-           ┌───────────────────┴───────────────────┐
-           │                                       │
-
-           ▼                                       ▼
-
- ┌─────────────────────┐              ┌─────────────────────┐
- │ Face Authentication │              │ Object Recognition  │
- └──────────┬──────────┘              └──────────┬──────────┘
-            │                                    │
-            └─────────────┬──────────────────────┘
-                          ▼
-
-                ┌─────────────────────┐
-                │   Decision Engine   │
-                └──────────┬──────────┘
-                           │
-
-      ┌────────────────────┼────────────────────┐
-      │                    │                    │
-
-      ▼                    ▼                    ▼
-
-┌───────────────┐  ┌───────────────┐  ┌───────────────┐
-│ Evidence      │  │ Event Logging │  │ Alert Module  │
-│ Generation    │  │ SQLite DB     │  │ Arduino Nano  │
-└───────┬───────┘  └───────────────┘  └───────┬───────┘
-        │                                      │
-        ▼                                      ▼
-
-┌───────────────┐                    ┌──────────────────┐
-│ AWS S3 Cloud  │                    │ LED + Buzzer     │
-│ Backup        │                    │ Alert System     │
-└───────────────┘                    └──────────────────┘
+Camera -> OpenCV capture -> DeepFace (FaceNet) verification -> Stability logic
+                                                                     |
+                     +-------------------+-----------------+---------+
+                     |                   |                 |
+              Evidence image       AWS SNS email     Arduino Nano
+              saved locally,          alert          LED + buzzer
+              uploaded to S3
+                     |
+               MySQL event log -> Flask admin dashboard
 ```
 
----
+Recognition runs at the edge to keep latency low. The cloud handles evidence backup and notifications.
 
-# Technology Stack
+## How detection works
 
-| Category | Technology |
-|-----------|------------|
-| Programming Language | Python 3.11 |
-| Artificial Intelligence | YOLOv8 |
-| Computer Vision | OpenCV |
-| Face Recognition | face_recognition |
-| Machine Learning | Deep Learning |
-| Backend Framework | Flask |
-| Frontend | HTML, CSS, JavaScript |
-| Database | SQLite |
-| Cloud Platform | AWS S3 |
-| IoT Controller | Arduino Nano |
-| Communication | PySerial |
-| Hardware Alert | LED + Buzzer |
-| Development Environment | VS Code |
-| Version Control | Git & GitHub |
+| Setting | Value |
+|---|---|
+| Face model | FaceNet through DeepFace |
+| Recognition frequency | Every 10th frame |
+| Match threshold | Distance below 0.55 |
+| Becomes `AUTHORIZED` after | 2 consecutive matching checks |
+| Becomes `UNAUTHORIZED` after | 3 consecutive non-matching checks |
+| Evidence cooldown | 5 seconds between captures |
+| Arduino serial signal | `A` for authorized, `U` for unauthorized |
 
----
+Evidence upload, alerting and logging run in a background thread so the video loop is not blocked.
 
-# Project Structure
+## Tech stack
 
-```text
-INTELLIGENT-SURVEILLANCE-SYSTEM
-│
-├── app/
-│   ├── alerts.py
-│   ├── cloud_upload.py
-│   ├── decision_engine.py
-│   ├── detection.py
-│   ├── evidence.py
-│   ├── face_auth.py
-│   ├── main.py
-│   └── __init__.py
-│
-├── backup/
-│
-├── database/
-│
-├── evidence/
-│
-├── known_faces/
-│
-├── logs/
-│
-├── models/
-│   └── yolov8n.pt
-│
-├── static/
-│
-├── templates/
-│
-├── register_face.py
-├── find_cam.py
-├── nano_test_cam.py
-├── aws_test.py
-├── main.py
-├── requirements.txt
-└── README.md
-```
+Python, OpenCV, DeepFace, TensorFlow, Flask, Flask-SocketIO, MySQL, AWS S3, AWS SNS, boto3, PySerial, Arduino Nano, HTML, CSS, JavaScript, Chart.js.
 
----
+## Try the dashboard locally
 
-# System Workflow
-
-1. Webcam captures live video.
-2. OpenCV processes incoming frames.
-3. YOLOv8 performs object detection.
-4. Face Recognition authenticates individuals.
-5. Decision Engine evaluates threat level.
-6. Evidence is captured automatically.
-7. Incident data is stored in SQLite.
-8. Evidence is uploaded to AWS S3.
-9. Arduino Nano receives alert signals.
-10. LED and Buzzer notify security personnel.
-11. Dashboard displays incidents and logs.
-
----
-
-# Database Design
-
-### Events Table
-
-| Field | Description |
-|---------|-------------|
-| id | Event ID |
-| timestamp | Detection Time |
-| event_type | Event Category |
-| person_name | Identified Person |
-| confidence | Detection Confidence |
-| image_path | Local Evidence Path |
-| cloud_url | Cloud Storage URL |
-
-### Known Faces Table
-
-| Field | Description |
-|---------|-------------|
-| id | Face ID |
-| name | User Name |
-| encoding_path | Face Encoding File |
-
-### Alerts Table
-
-| Field | Description |
-|---------|-------------|
-| id | Alert ID |
-| timestamp | Alert Time |
-| alert_level | Alert Severity |
-| description | Alert Information |
-
----
-
-# Arduino Connections
-
-## LED Circuit
-
-| Arduino Nano Pin | Component |
-|------------------|------------|
-| D2 | LED Positive |
-| GND | LED Negative |
-
-## Buzzer Circuit
-
-| Arduino Nano Pin | Component |
-|------------------|------------|
-| D3 | Buzzer Positive |
-| GND | Buzzer Negative |
-
----
-
-# Installation
-
-### Clone Repository
+No camera, MySQL or AWS account needed:
 
 ```bash
-git clone https://github.com/your-username/intelligent-surveillance-system.git
-cd intelligent-surveillance-system
-```
-
-### Create Virtual Environment
-
-```bash
-python -m venv venv
-```
-
-### Activate Environment
-
-#### Windows
-
-```bash
-venv\Scripts\activate
-```
-
-#### macOS / Linux
-
-```bash
+git clone https://github.com/haarishk1510-pixel/ai-smart-surveillance.git
+cd ai-smart-surveillance
+python3 -m venv venv
 source venv/bin/activate
-```
-
-### Install Dependencies
-
-```bash
 pip install -r requirements.txt
+DEMO_MODE=1 python app.py
 ```
 
----
+Open http://127.0.0.1:5000 and sign in with `admin` / `admin`.
 
-# Configuration
+## Run the full system
 
-Create a `.env` file:
-
-```env
-AWS_ACCESS_KEY_ID=your_key
-AWS_SECRET_ACCESS_KEY=your_secret
-AWS_BUCKET_NAME=your_bucket
-SERIAL_PORT=/dev/ttyUSB0
-```
-
----
-
-# Run the Project
+Requirements: a webcam, MySQL, an AWS account with an S3 bucket and SNS topic, and optionally an Arduino Nano.
 
 ```bash
-python main.py
+pip install -r requirements-edge.txt
+cp .env.example .env              # then fill in your values
+mysql -u root -p < schema.sql
+aws configure
+python register_face.py           # enroll authorized faces into known_faces/
+python main.py                    # start detection (press q to quit)
+python app.py                     # start the dashboard in a second terminal
 ```
 
----
+Set `ADMIN_USERNAME` and `ADMIN_PASSWORD` in `.env` before using the dashboard for anything real.
 
-# Future Enhancements
+## Arduino wiring
 
-- Multi-camera support
-- Mobile application
-- Weapon detection
-- Fire and smoke detection
-- Email notifications
-- SMS alerts
-- Cloud dashboard
-- Edge AI deployment
-- CCTV integration
-- Vehicle recognition
+| Arduino Nano pin | Component |
+|---|---|
+| D2 | LED positive |
+| D3 | Buzzer positive |
+| GND | LED and buzzer negative |
 
----
-
-# Research Areas
-
-- Artificial Intelligence
-- Computer Vision
-- Face Recognition
-- Cloud Computing
-- Internet of Things (IoT)
-- Embedded Systems
-- Smart Surveillance Systems
-
----
-
-# Screenshots
+## Project structure
 
 ```text
-screenshots/
-├── dashboard.png
-├── detection.png
-├── face_authentication.png
-├── alert_system.png
-└── architecture.png
+main.py              Edge detection, evidence, alerts and serial output
+app.py               Flask dashboard, with demo mode
+register_face.py     Enrolls authorized faces
+schema.sql           MySQL table definition
+templates/           Dashboard and login pages
+app/                 Earlier modular prototype, including YOLOv8 person detection
+find_cam.py, test_cam.py, aws_test.py   Hardware and AWS checks
+requirements.txt     Dashboard demo only
+requirements-edge.txt  Full system
 ```
 
-Add screenshots here after deployment.
+## Privacy
 
----
+Face images, camera captures and credentials are excluded from version control. Face recognition processes biometric data, so get consent from anyone you enroll or monitor and follow the laws that apply where you deploy it.
 
-# License
+## Known limitations
 
-This project is developed for academic and research purposes.
+- Accuracy drops in low light and when faces are obscured.
+- Recognition speed depends on the edge device's processing power.
+- Each check compares against up to 3 enrolled images.
+- The system has been tested indoors with a single laptop webcam.
 
----
+## Research paper
 
-# Author
+*AI-Powered Intelligent Surveillance and Threat Analytics System with Cloud-Native Security Architecture*
+Dr. J. Jegan, Haarish Kumar S, Swathi K S, SRM Institute of Science and Technology, Tiruchirappalli.
 
-### Haarish kumar S
-B.Tech Computer Science and Engineering
+A link will be added here once the paper is available.
 
+## Author
 
-
-**Intelligent Surveillance System with AI, Face Recognition, Cloud Backup and IoT Alerting**
+**Haarish Kumar S**, B.Tech Computer Science and Engineering, SRM Institute of Science and Technology, Tiruchirappalli.

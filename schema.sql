@@ -1,0 +1,12 @@
+CREATE DATABASE IF NOT EXISTS surveillance_db;
+USE surveillance_db;
+
+CREATE TABLE IF NOT EXISTS events (
+  id INT NOT NULL AUTO_INCREMENT,
+  name VARCHAR(100) DEFAULT NULL,
+  status VARCHAR(50) DEFAULT NULL,
+  distance FLOAT DEFAULT NULL,
+  image_path TEXT,
+  timestamp DATETIME DEFAULT NULL,
+  PRIMARY KEY (id)
+);

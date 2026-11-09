@@ -1,0 +1,6 @@
+# Allowlist: only the demo dashboard is uploaded to Vercel
+/*
+!/app.py
+!/requirements.txt
+!/vercel.json
+!/templates
