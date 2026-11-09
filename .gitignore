@@ -24,3 +24,5 @@ logs/
 .vercel/
 nano find_cam.py
 nano test_cam.py
+.claude/
+resume_output/

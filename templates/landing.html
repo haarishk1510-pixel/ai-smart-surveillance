@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Smart Surveillance</title>
+<meta name="description" content="Real-time face verification with automatic evidence capture, cloud alerts and a hardware alarm.">
+{% include "_theme.html" %}
+<style>
+.wrap{max-width:1120px;margin:0 auto;padding:0 24px}
+nav{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px 0}
+.brand{font:500 14px var(--mono)}
+.brand i{display:inline-block;width:8px;height:8px;margin-right:9px;border-radius:50%;background:var(--bad)}
+nav a.link{font-size:15px;color:var(--muted);text-decoration:none}
+nav a.link:hover{color:var(--text)}
+
+.hero{display:grid;grid-template-columns:1.05fr 1fr;gap:56px;align-items:center;padding:40px 0 72px}
+h1{font-size:clamp(36px,5.2vw,58px);line-height:1.08;font-weight:600;letter-spacing:-.02em;margin:14px 0 18px}
+.lede{font-size:18px;color:var(--muted);max-width:33em;margin:0 0 26px}
+.cta{display:flex;flex-wrap:wrap;gap:12px}
+.note{margin:22px 0 0;padding-left:12px;border-left:2px solid var(--accent);font-size:14px;color:var(--muted);max-width:36em}
+
+.sim{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.sim-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);font:400 12px var(--mono);color:var(--muted)}
+.view{position:relative;height:190px;background:#0a0e10;overflow:hidden;display:flex;align-items:flex-end;justify-content:center}
+.view svg{height:170px;color:#4a575c;transition:color .25s}
+.view[data-state="good"] svg{color:var(--good)}
+.view[data-state="bad"] svg{color:var(--bad)}
+.corner{position:absolute;width:150px;height:150px;left:50%;top:18px;transform:translateX(-50%);border:1px solid var(--line);border-radius:4px}
+.scan{position:absolute;left:0;right:0;top:0;height:2px;background:var(--accent);opacity:0}
+.view.running .scan{opacity:.85;animation:scan 1s linear infinite}
+@keyframes scan{from{top:0}to{top:100%}}
+.readout{padding:16px}
+.row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font:400 13px var(--mono);color:var(--muted)}
+.row b{font-weight:500;color:var(--text)}
+.meter{position:relative;height:8px;margin:8px 0 18px;background:var(--panel-2);border-radius:4px}
+.meter span{display:block;height:100%;width:0;border-radius:4px;background:var(--muted);transition:width .3s}
+.meter em{position:absolute;left:55%;top:-4px;bottom:-4px;width:2px;background:var(--accent)}
+.counts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+.controls{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.chain{list-style:none;margin:0;padding:14px 16px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:8px}
+.chain li{padding:4px 10px;border:1px solid var(--line);border-radius:4px;font:400 12px var(--mono);color:var(--muted)}
+.chain li.on{color:#17130a;background:var(--accent);border-color:var(--accent)}
+.explain{margin:0;padding:0 16px 16px;font-size:14px;color:var(--muted);min-height:58px}
+
+section{padding:64px 0;border-top:1px solid var(--line)}
+h2{font-size:clamp(26px,3.2vw,36px);line-height:1.2;font-weight:600;letter-spacing:-.01em;margin:10px 0 28px;max-width:22em}
+.flow{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(5,1fr);gap:0;counter-reset:s}
+.flow li{counter-increment:s;padding:0 20px 0 0}
+.flow li::before{content:"0" counter(s);display:block;padding-bottom:10px;margin-bottom:12px;border-bottom:1px solid var(--line);font:500 13px var(--mono);color:var(--accent)}
+.flow h3,.split h3{margin:0 0 6px;font-size:17px;font-weight:600}
+.flow p,.split p{margin:0;font-size:15px;color:var(--muted)}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:56px}
+.spec{width:100%;border-collapse:collapse;font-size:15px}
+.spec td{padding:11px 0;border-bottom:1px solid var(--line);vertical-align:top}
+.spec td:last-child{text-align:right;font:400 14px var(--mono);padding-left:16px}
+.stack{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px;padding:0;list-style:none}
+.stack li{padding:5px 11px;background:var(--panel);border:1px solid var(--line);border-radius:4px;font:400 13px var(--mono)}
+footer{padding:28px 0 44px;border-top:1px solid var(--line);font-size:14px;color:var(--muted);display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px}
+
+@media (max-width:860px){
+  .hero{grid-template-columns:1fr;gap:36px;padding-top:20px}
+  .flow{grid-template-columns:1fr;gap:22px}
+  .split{grid-template-columns:1fr;gap:36px}
+}
+@media (max-width:420px){
+  .wrap{padding:0 16px}
+  .controls{grid-template-columns:1fr}
+  .cta .btn{width:100%}
+}
+@media (prefers-reduced-motion:reduce){
+  .view.running .scan{animation:none;opacity:0}
+  .meter span,.view svg{transition:none}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<nav>
+  <div class="brand"><i aria-hidden="true"></i>AI Smart Surveillance</div>
+  <a class="link" href="https://github.com/haarishk1510-pixel/ai-smart-surveillance">GitHub</a>
+</nav>
+
+<header class="hero">
+  <div>
+    <div class="eyebrow">Edge AI + cloud + IoT</div>
+    <h1>A camera that checks who is there and responds on its own.</h1>
+    <p class="lede">It verifies faces from a live feed, then captures evidence, emails an alert, logs the event and sounds a hardware alarm when someone isn't recognized.</p>
+    <div class="cta">
+      <form method="POST" action="/demo"><button class="btn btn-primary" type="submit">Open the live dashboard</button></form>
+      <a class="btn" href="https://github.com/haarishk1510-pixel/ai-smart-surveillance">View the code</a>
+    </div>
+    <p class="note">This site runs on sample data. The detection program needs a webcam and an Arduino, so it runs on local hardware rather than on this server.</p>
+  </div>
+
+  <div class="sim" aria-label="Decision logic simulator">
+    <div class="sim-head">
+      <span>CAM 01 / SIMULATION</span>
+      <span id="status" class="pill pill-idle" aria-live="polite">WAITING</span>
+    </div>
+    <div class="view" id="view">
+      <div class="corner"></div>
+      <svg viewBox="0 0 200 170" fill="currentColor" aria-hidden="true">
+        <circle cx="100" cy="62" r="40"/>
+        <path d="M22 170c5-48 38-68 78-68s73 20 78 68z"/>
+      </svg>
+      <div class="scan"></div>
+    </div>
+    <div class="readout">
+      <div class="row"><span>Face distance</span><b id="dist">--</b></div>
+      <div class="meter"><span id="bar"></span><em title="Match threshold 0.55"></em></div>
+      <div class="counts">
+        <div class="row"><span>Matches</span><b id="auth">0 / 2</b></div>
+        <div class="row"><span>Non-matches</span><b id="unauth">0 / 3</b></div>
+      </div>
+      <div class="controls">
+        <button class="btn" id="known" type="button">Enrolled person</button>
+        <button class="btn" id="stranger" type="button">Unknown person</button>
+      </div>
+    </div>
+    <ul class="chain" aria-label="Response steps">
+      <li data-step="evidence">Evidence</li>
+      <li data-step="s3">AWS S3</li>
+      <li data-step="sns">Email alert</li>
+      <li data-step="mysql">MySQL log</li>
+      <li data-step="arduino">Arduino</li>
+    </ul>
+    <p class="explain" id="explain">Pick who walks in. Distances here are simulated, but the rules are the same ones the real program uses.</p>
+  </div>
+</header>
+
+<section>
+  <div class="eyebrow">How it works</div>
+  <h2>From a camera frame to an alarm</h2>
+  <ol class="flow">
+    <li><h3>Capture</h3><p>OpenCV reads frames from the camera.</p></li>
+    <li><h3>Verify</h3><p>DeepFace (FaceNet) compares every 10th frame with enrolled faces.</p></li>
+    <li><h3>Confirm</h3><p>Several checks must agree, so one bad frame doesn't trigger an alarm.</p></li>
+    <li><h3>Respond</h3><p>A background thread saves evidence, uploads it to S3 and sends an SNS email.</p></li>
+    <li><h3>Signal</h3><p>Events reach MySQL and the dashboard. The Arduino drives an LED and buzzer.</p></li>
+  </ol>
+</section>
+
+<section>
+  <div class="split">
+    <div>
+      <div class="eyebrow">Decision rules</div>
+      <h2>Tuned for fewer false alarms</h2>
+      <table class="spec">
+        <tr><td>Match threshold</td><td>distance &lt; 0.55</td></tr>
+        <tr><td>Marked authorized after</td><td>2 matching checks</td></tr>
+        <tr><td>Marked unauthorized after</td><td>3 failed checks</td></tr>
+        <tr><td>Time between evidence captures</td><td>5 seconds</td></tr>
+        <tr><td>Serial signal to Arduino</td><td>A / U</td></tr>
+      </table>
+    </div>
+    <div>
+      <div class="eyebrow">Architecture</div>
+      <h2>Fast at the edge, durable in the cloud</h2>
+      <h3>On the local device</h3>
+      <p>Video capture, face verification and the alarm stay local, so a response doesn't wait on the network.</p>
+      <h3 style="margin-top:20px">In AWS</h3>
+      <p>S3 keeps a backup of each evidence image, and SNS notifies the administrator by email.</p>
+      <ul class="stack">
+        <li>Python</li><li>OpenCV</li><li>DeepFace</li><li>TensorFlow</li><li>Flask</li><li>MySQL</li><li>AWS S3</li><li>AWS SNS</li><li>Arduino Nano</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <span>Built by Haarish Kumar S, SRM Institute of Science and Technology, Tiruchirappalli</span>
+  <a href="https://github.com/haarishk1510-pixel/ai-smart-surveillance">Source on GitHub</a>
+</footer>
+
+</div>
+
+<script>
+(function(){
+  var THRESHOLD = 0.55, NEED_AUTH = 2, NEED_UNAUTH = 3;
+  var reduced = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var status = null, auth = 0, unauth = 0;
+  var el = function(id){ return document.getElementById(id); };
+  var buttons = [el("known"), el("stranger")];
+  var steps = document.querySelectorAll(".chain li");
+  var wait = function(ms){ return new Promise(function(r){ setTimeout(r, reduced ? 60 : ms); }); };
+
+  function showCounts(){
+    el("auth").textContent = Math.min(auth, NEED_AUTH) + " / " + NEED_AUTH;
+    el("unauth").textContent = Math.min(unauth, NEED_UNAUTH) + " / " + NEED_UNAUTH;
+  }
+  function showStatus(){
+    var good = status === "AUTHORIZED";
+    el("status").textContent = good ? "✓ AUTHORIZED" : "▲ UNAUTHORIZED";
+    el("status").className = "pill " + (good ? "pill-good" : "pill-bad");
+    el("view").dataset.state = good ? "good" : "bad";
+  }
+  function light(name){
+    document.querySelector('[data-step="' + name + '"]').classList.add("on");
+  }
+  function check(enrolled){
+    var d = enrolled ? 0.32 + Math.random() * 0.16 : 0.62 + Math.random() * 0.33;
+    if (d < THRESHOLD) { auth++; unauth = 0; } else { unauth++; auth = 0; }
+    el("dist").textContent = d.toFixed(2);
+    el("bar").style.width = (d * 100) + "%";
+    showCounts();
+  }
+
+  async function run(enrolled){
+    buttons.forEach(function(b){ b.disabled = true; });
+    steps.forEach(function(s){ s.classList.remove("on"); });
+    auth = 0; unauth = 0; showCounts();
+    el("view").classList.add("running");
+    el("explain").textContent = "Running face checks. Distance must be below the marker to count as a match.";
+
+    var checks = enrolled ? NEED_AUTH : NEED_UNAUTH;
+    for (var i = 0; i < checks; i++) { await wait(800); check(enrolled); }
+    await wait(500);
+    el("view").classList.remove("running");
+
+    var next = enrolled ? "AUTHORIZED" : "UNAUTHORIZED";
+    var changed = next !== status;
+    status = next;
+    showStatus();
+
+    if (enrolled) {
+      if (changed) light("arduino");
+      el("explain").textContent = changed
+        ? "Two checks matched. The Arduino gets signal A, and no evidence or alert is created."
+        : "Still authorized, so nothing new is sent.";
+    } else {
+      var chain = ["evidence", "s3", "sns", "mysql"];
+      for (var j = 0; j < chain.length; j++) { light(chain[j]); await wait(320); }
+      if (changed) light("arduino");
+      el("explain").textContent = changed
+        ? "Three checks failed. Evidence is saved and uploaded, the admin is emailed, the event is logged and the Arduino gets signal U."
+        : "Still unauthorized, so another event is recorded after the 5-second cooldown. The Arduino only hears about changes.";
+    }
+    buttons.forEach(function(b){ b.disabled = false; });
+  }
+
+  el("known").addEventListener("click", function(){ run(true); });
+  el("stranger").addEventListener("click", function(){ run(false); });
+})();
+</script>
+</body>
+</html>

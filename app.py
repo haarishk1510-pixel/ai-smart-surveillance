@@ -121,8 +121,25 @@ def serve_evidence(filename):
     return send_from_directory('evidence', filename)
 
 
-# ================= LOGIN =================
+# ================= HOME =================
 @app.route("/", methods=["GET", "POST"])
+def home():
+    if DEMO_MODE:
+        return render_template("landing.html")
+    return login()
+
+
+# ================= ONE-CLICK DEMO =================
+@app.route("/demo", methods=["POST"])
+def demo_login():
+    if not DEMO_MODE:
+        return redirect(url_for("login"))
+    session["user"] = "demo"
+    return redirect(url_for("dashboard"))
+
+
+# ================= LOGIN =================
+@app.route("/login", methods=["GET", "POST"])
 def login():
 
     if request.method == "POST":
@@ -211,7 +228,7 @@ def export_csv():
 def logout():
 
     session.clear()
-    return redirect(url_for("login"))
+    return redirect(url_for("home"))
 
 
 # ================= SOCKET EVENT =================
@@ -224,7 +241,8 @@ if socketio:
 # ================= RUN =================
 if __name__ == "__main__":
     debug = os.environ.get("FLASK_DEBUG", "1") == "1"
+    port = int(os.environ.get("PORT", 5000))
     if socketio:
-        socketio.run(app, debug=debug)
+        socketio.run(app, debug=debug, port=port)
     else:
-        app.run(debug=debug)
+        app.run(debug=debug, port=port)

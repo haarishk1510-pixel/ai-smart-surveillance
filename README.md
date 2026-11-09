@@ -10,7 +10,7 @@ Real-time face authentication with automatic evidence capture, cloud alerts and 
 ![AWS](https://img.shields.io/badge/AWS-S3%20%2B%20SNS-orange)
 ![Arduino](https://img.shields.io/badge/Arduino-Nano-teal)
 
-**Live demo:** <https://ai-smart-surveillance.vercel.app> (sign in with `admin` / `admin`)
+**Live demo:** <https://ai-smart-surveillance.vercel.app> (one click, no sign-up)
 
 > The live demo runs only the admin dashboard, on sample data. The detection pipeline needs a webcam, an Arduino and a local database, so it runs on an edge device rather than in the cloud. No real people or camera images are in the demo or in this repository.
 
@@ -73,7 +73,7 @@ pip install -r requirements.txt
 DEMO_MODE=1 python app.py
 ```
 
-Open http://127.0.0.1:5000 and sign in with `admin` / `admin`.
+Open http://127.0.0.1:5000 and choose **Open the live dashboard**. If port 5000 is taken, set `PORT` to another number.
 
 ## Run the full system
 
@@ -106,7 +106,7 @@ main.py              Edge detection, evidence, alerts and serial output
 app.py               Flask dashboard, with demo mode
 register_face.py     Enrolls authorized faces
 schema.sql           MySQL table definition
-templates/           Dashboard and login pages
+templates/           Project landing page, dashboard and login
 app/                 Earlier modular prototype, including YOLOv8 person detection
 find_cam.py, test_cam.py, aws_test.py   Hardware and AWS checks
 requirements.txt     Dashboard demo only
